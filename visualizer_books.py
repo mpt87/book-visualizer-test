@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
@@ -5,6 +6,8 @@ import numpy as np
 import random
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
+from PIL import Image
+
 
 
 class BookModelVisualizer:
@@ -365,6 +368,79 @@ class BookModelVisualizer:
                 example_idx=example_idx
             )
 
+
+      # ------------------------------------------------------------------
+    #  Visualizzazione data augmentation (originale vs trasformata)
+    # ------------------------------------------------------------------
+    def show_augmentation_example(
+        self,
+        dataset,
+        transform,
+        num_examples=1,
+        seed=None,
+        title_prefix="Data augmentation"
+    ):
+        """
+        Mostra, per alcune immagini prese dal dataset (usando il CSV e root_dir),
+        il confronto tra:
+          - immagine originale (file su disco)
+          - immagine dopo le stesse trasformazioni usate in training/validation.
+
+        Args:
+            dataset: istanza di BookCoverDataset (con attributi .df e .root_dir).
+            transform: pipeline di torchvision.transforms (es. data_transforms['train']).
+            num_examples: quante coppie originale/trasformata mostrare.
+            seed: opzionale, per rendere ripetibile la scelta di immagini.
+            title_prefix: prefisso del titolo (es. 'Train Augmentation').
+        """
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
+        num_to_show = min(num_examples, len(dataset))
+        indices = random.sample(range(len(dataset)), num_to_show)
+
+        for i, idx in enumerate(indices, start=1):
+            # Recupero path dell'immagine dal CSV
+            try:
+                row = dataset.df.iloc[idx]
+                filename = str(row["Filename"])
+                img_path = os.path.join(dataset.root_dir, filename)
+            except Exception as e:
+                print(f"⚠️ Impossibile ricavare il path per idx={idx}: {e}")
+                continue
+
+            # Carica immagine originale
+            try:
+                orig_img = Image.open(img_path).convert("RGB")
+            except Exception as e:
+                print(f"⚠️ Impossibile aprire {img_path}: {e}")
+                continue
+
+            # Applica la stessa pipeline di trasformazioni (ToTensor + Normalize, ecc.)
+            transformed_tensor = transform(orig_img)  # (C,H,W)
+
+            # Converti per il display
+            orig_np = np.array(orig_img) / 255.0  # [H,W,3] in [0,1]
+            aug_np = self.denormalize(transformed_tensor)
+
+            plt.figure(figsize=(8, 4))
+
+            # Originale
+            plt.subplot(1, 2, 1)
+            plt.imshow(orig_np)
+            plt.title(f"{title_prefix} - Original #{i}")
+            plt.axis("off")
+
+            # Trasformata
+            plt.subplot(1, 2, 2)
+            plt.imshow(aug_np)
+            plt.title(f"{title_prefix} - Transformed #{i}")
+            plt.axis("off")
+
+            plt.tight_layout()
+            plt.show()
     # ------------------------------------------------------------------
     #  Confusion Matrix (val o test)
     # ------------------------------------------------------------------
