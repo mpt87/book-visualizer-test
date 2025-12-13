@@ -47,28 +47,32 @@ class BookModelVisualizer:
     # ------------------------------------------------------------------
     def plot_predictions(self, dataset, num_samples=5):
         """
-        Seleziona num_samples immagini a caso dal dataset,
+        Seleziona alcune immagini a caso dal dataset,
         mostra le copertine, la label reale e le Top-3 predizioni del modello.
 
         dataset: tipicamente val_dataset o test_dataset
-        num_samples: quante immagini mostrare
+        num_samples: quante immagini mostrare (massimo 5 per ragioni grafiche)
         """
         self.model.eval()
 
-        indices = random.sample(range(len(dataset)), min(num_samples, len(dataset)))
+        # 🔧 Limitiamo a massimo 5 immagini, come richiesto
+        n_samples = min(num_samples, len(dataset), 5)
 
-        num_cols = len(indices)
-        fig, axes = plt.subplots(1, num_cols, figsize=(5 * num_cols, 5))
+        # Indici random
+        indices = random.sample(range(len(dataset)), n_samples)
 
-        if num_cols == 1:
+        fig, axes = plt.subplots(1, n_samples, figsize=(4 * n_samples, 5))
+        if n_samples == 1:
             axes = [axes]
 
         for i, idx in enumerate(indices):
             image, label_idx = dataset[idx]  # image: tensor (C,H,W), label_idx: int
             ax = axes[i]
 
+            # Preparazione input
             input_tensor = image.unsqueeze(0).to(self.device)
 
+            # Inferenza
             with torch.no_grad():
                 outputs = self.model(input_tensor)        # logits [1, num_classes]
                 probs = torch.nn.functional.softmax(outputs, dim=1)
@@ -81,10 +85,12 @@ class BookModelVisualizer:
             ax.imshow(img_np)
             ax.axis("off")
 
+            # label reale e predetta
             true_label_name = self.class_names[label_idx]
             top1_idx = int(preds[0])
             top1_name = self.class_names[top1_idx]
 
+            # LOGICA DI VALUTAZIONE
             if top1_idx == label_idx:
                 status = "TOP-1 ✅"
                 status_color = "green"
@@ -98,6 +104,7 @@ class BookModelVisualizer:
             title = f"True: {true_label_name}\nPred: {top1_name}\n{status}"
             ax.set_title(title, color=status_color, fontsize=12, fontweight="bold")
 
+            # Aggiungiamo le probabilità sotto come testo
             info_text = ""
             for j in range(3):
                 cls_name = self.class_names[int(preds[j])]
@@ -415,3 +422,34 @@ class BookModelVisualizer:
         plt.show()
 
         return cm
+
+    # ------------------------------------------------------------------
+    #  Curve di loss (train vs validation)
+    # ------------------------------------------------------------------
+    def plot_loss_curves(self, history, title="Training vs Validation Loss"):
+        """
+        Disegna le curve di training/validation loss nel tempo.
+
+        Args:
+            history: dict con chiavi 'train_loss' e 'val_loss' (come costruito in train_model).
+            title: titolo del grafico.
+        """
+        train_loss = history.get('train_loss', [])
+        val_loss = history.get('val_loss', [])
+
+        if not train_loss or not val_loss:
+            print("⚠️ history non contiene 'train_loss' e/o 'val_loss'. Niente da plottare.")
+            return
+
+        epochs = range(1, len(train_loss) + 1)
+
+        plt.figure(figsize=(8, 5))
+        plt.plot(epochs, train_loss, label="Train Loss")
+        plt.plot(epochs, val_loss, label="Val Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.show()
