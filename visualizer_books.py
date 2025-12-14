@@ -9,59 +9,58 @@ from sklearn.metrics import confusion_matrix
 from PIL import Image
 
 
-
 class BookModelVisualizer:
     def __init__(self, model, device, class_names):
         """
-        Utility per visualizzare predizioni, Grad-CAM e metriche
-        del modello su copertine di libri.
+        Utility to visualize predictions, Grad-CAM and metrics
+        of the model on book covers.
 
         Args:
-            model: modello PyTorch già caricato (stessa architettura usata in training).
-            device: torch.device('cuda') o torch.device('cpu').
-            class_names: lista di stringhe con i nomi delle classi
-                         nello stesso ordine usato da train_val_dataset.classes.
+            model: PyTorch model already loaded (same architecture used in training).
+            device: torch.device('cuda') or torch.device('cpu').
+            class_names: list of strings with the class names
+                         in the same order used by train_val_dataset.classes.
         """
         self.model = model
         self.device = device
         self.class_names = class_names
 
-        # Mean / std usate anche nel notebook per Normalize
+        # Mean / std also used in the notebook for Normalize
         self.mean = np.array([0.485, 0.456, 0.406])
         self.std = np.array([0.229, 0.224, 0.225])
 
     # ------------------------------------------------------------------
-    #  Denormalizzazione immagine
+    #  Image denormalization
     # ------------------------------------------------------------------
     def denormalize(self, tensor):
         """
-        Converte un tensore normalizzato (C, H, W) in immagine NumPy (H, W, C)
-        con valori in [0,1], pronta per plt.imshow.
+        Converts a normalized tensor (C, H, W) into a NumPy image (H, W, C)
+        with values in [0,1], ready for plt.imshow.
         """
         img = tensor.cpu().numpy()          # (C, H, W)
         img = np.transpose(img, (1, 2, 0))  # (H, W, C)
 
-        img = img * self.std + self.mean    # denormalizzazione
+        img = img * self.std + self.mean    # denormalization
         img = np.clip(img, 0, 1)
         return img
 
     # ------------------------------------------------------------------
-    #  Visualizzazione predizioni Top-3 su immagini random
+    #  Visualization of Top-3 predictions on random images
     # ------------------------------------------------------------------
     def plot_predictions(self, dataset, num_samples=5):
         """
-        Seleziona alcune immagini a caso dal dataset,
-        mostra le copertine, la label reale e le Top-3 predizioni del modello.
+        Selects some random images from the dataset,
+        shows the covers, the true label and the model's Top-3 predictions.
 
-        dataset: tipicamente val_dataset o test_dataset
-        num_samples: quante immagini mostrare (massimo 5 per ragioni grafiche)
+        dataset: typically val_dataset or test_dataset
+        num_samples: how many images to show (maximum 5 for layout reasons)
         """
         self.model.eval()
 
-        # 🔧 Limitiamo a massimo 5 immagini, come richiesto
+        # 🔧 Limit to at most 5 images, as requested
         n_samples = min(num_samples, len(dataset), 5)
 
-        # Indici random
+        # Random indices
         indices = random.sample(range(len(dataset)), n_samples)
 
         fig, axes = plt.subplots(1, n_samples, figsize=(4 * n_samples, 5))
@@ -72,10 +71,10 @@ class BookModelVisualizer:
             image, label_idx = dataset[idx]  # image: tensor (C,H,W), label_idx: int
             ax = axes[i]
 
-            # Preparazione input
+            # Prepare input
             input_tensor = image.unsqueeze(0).to(self.device)
 
-            # Inferenza
+            # Inference
             with torch.no_grad():
                 outputs = self.model(input_tensor)        # logits [1, num_classes]
                 probs = torch.nn.functional.softmax(outputs, dim=1)
@@ -88,12 +87,12 @@ class BookModelVisualizer:
             ax.imshow(img_np)
             ax.axis("off")
 
-            # label reale e predetta
+            # True and predicted labels
             true_label_name = self.class_names[label_idx]
             top1_idx = int(preds[0])
             top1_name = self.class_names[top1_idx]
 
-            # LOGICA DI VALUTAZIONE
+            # Evaluation logic
             if top1_idx == label_idx:
                 status = "TOP-1 ✅"
                 status_color = "green"
@@ -107,7 +106,7 @@ class BookModelVisualizer:
             title = f"True: {true_label_name}\nPred: {top1_name}\n{status}"
             ax.set_title(title, color=status_color, fontsize=12, fontweight="bold")
 
-            # Aggiungiamo le probabilità sotto come testo
+            # Add probabilities as text below the image
             info_text = ""
             for j in range(3):
                 cls_name = self.class_names[int(preds[j])]
@@ -128,14 +127,14 @@ class BookModelVisualizer:
         plt.show()
 
     # ------------------------------------------------------------------
-    #  Singolo esempio (senza Grad-CAM)
+    #  Single example (without Grad-CAM)
     # ------------------------------------------------------------------
     def visualize_single_prediction(self, image_tensor, true_label_idx=None):
         """
-        Visualizza una singola immagine (normalizzata) con le Top-3 predizioni.
+        Visualizes a single image (normalized) with the Top-3 predictions.
 
-        image_tensor: tensore (C,H,W) già normalizzato (stesse trasformazioni del dataset).
-        true_label_idx: indice della label reale (opzionale).
+        image_tensor: tensor (C,H,W) already normalized (same transforms as the dataset).
+        true_label_idx: index of the true label (optional).
         """
         self.model.eval()
 
@@ -155,7 +154,7 @@ class BookModelVisualizer:
         plt.imshow(img_np)
         plt.axis("off")
 
-        # Titolo: true vs pred top-1
+        # Title: true vs top-1 prediction
         if true_label_idx is not None:
             true_name = self.class_names[true_label_idx]
         else:
@@ -180,7 +179,7 @@ class BookModelVisualizer:
         title = f"True: {true_name}\nPred: {top1_name}\n{status}"
         plt.title(title, color=status_color, fontsize=12, fontweight="bold")
 
-        # Top-3 sotto forma di textbox
+        # Top-3 in a textbox at the bottom
         info_text = ""
         for j in range(3):
             cls_name = self.class_names[int(preds[j])]
@@ -202,21 +201,21 @@ class BookModelVisualizer:
         plt.show()
 
     # ------------------------------------------------------------------
-    #  Grad-CAM: generazione della heatmap per una singola immagine
+    #  Grad-CAM: generate heatmap for a single image
     # ------------------------------------------------------------------
     def generate_gradcam(self, input_tensor, target_class=None, target_layer_name="layer4"):
         """
-        Calcola Grad-CAM per una singola immagine (C,H,W) già normalizzata (ImageNet).
+        Computes Grad-CAM for a single image (C,H,W) already normalized (ImageNet).
 
         Args:
-            input_tensor: tensore immagine (C,H,W) normalizzato.
-            target_class: indice della classe bersaglio; se None usa la classe predetta.
-            target_layer_name: nome del layer convoluzionale su cui calcolare Grad-CAM
-                               (per ResNet50 tipicamente 'layer4').
+            input_tensor: image tensor (C,H,W) normalized.
+            target_class: index of the target class; if None uses the predicted class.
+            target_layer_name: name of the convolutional layer to compute Grad-CAM on
+                               (for ResNet50 typically 'layer4').
 
-        Ritorna:
-            cam: array 2D numpy in [0,1] con shape [H, W]
-            target_class: indice intero della classe bersaglio usata per il backward.
+        Returns:
+            cam: 2D numpy array in [0,1] with shape [H, W]
+            target_class: integer index of the target class used for the backward.
         """
         self.model.eval()
 
@@ -276,22 +275,22 @@ class BookModelVisualizer:
         return cam, target_class
 
     # ------------------------------------------------------------------
-    #  Grad-CAM: visualizzazione immagine + heatmap
+    #  Grad-CAM: visualization of image + heatmap
     # ------------------------------------------------------------------
     def show_gradcam_on_image(self, input_tensor, cam,
                               pred_class_idx=None, true_label_idx=None, example_idx=None):
         """
-        input_tensor: tensore immagine singola (C,H,W), normalizzato.
-        cam: array numpy 2D [H,W] in [0,1].
-        pred_class_idx: indice della classe predetta (per il titolo del pannello destro).
-        true_label_idx: indice della label reale (per il pannello sinistro).
-        example_idx: indice progressivo per etichetta nel titolo.
+        input_tensor: single image tensor (C,H,W), normalized.
+        cam: 2D numpy array [H,W] in [0,1].
+        pred_class_idx: predicted class index (for the title of the right panel).
+        true_label_idx: true label index (for the left panel).
+        example_idx: running index for labeling in the title.
         """
         img = self.denormalize(input_tensor)  # (H,W,C)
 
         plt.figure(figsize=(6, 3))
 
-        # Immagine originale + true label
+        # Original image + true label
         plt.subplot(1, 2, 1)
         title_left = "Original"
         if example_idx is not None:
@@ -305,7 +304,7 @@ class BookModelVisualizer:
         plt.imshow(img)
         plt.axis("off")
 
-        # Immagine + heatmap
+        # Image + heatmap
         plt.subplot(1, 2, 2)
         title = "Grad-CAM"
         if pred_class_idx is not None:
@@ -322,18 +321,18 @@ class BookModelVisualizer:
         plt.show()
 
     # ------------------------------------------------------------------
-    #  Grad-CAM: esempi multi-immagine su dataset (val/test)
+    #  Grad-CAM: multi-image examples on dataset (val/test)
     # ------------------------------------------------------------------
     def plot_gradcam_examples(self, dataset, num_examples=5, seed=None, target_layer_name="layer4"):
         """
-        Seleziona alcune immagini random dal dataset (val/test),
-        calcola Grad-CAM e mostra immagine + heatmap per ognuna.
+        Selects some random images from the dataset (val/test),
+        computes Grad-CAM and shows image + heatmap for each.
 
         Args:
-            dataset: tipicamente val_dataset o test_dataset (stesse trasformazioni del training).
-            num_examples: quante immagini mostrare.
-            seed: se specificato (int), rende la scelta degli esempi riproducibile.
-            target_layer_name: layer su cui calcolare Grad-CAM (default: 'layer4').
+            dataset: typically val_dataset or test_dataset (same transforms as training).
+            num_examples: how many images to show.
+            seed: if specified (int), makes the choice of images reproducible.
+            target_layer_name: layer on which to compute Grad-CAM (default: 'layer4').
         """
         if seed is not None:
             torch.manual_seed(seed)
@@ -344,7 +343,7 @@ class BookModelVisualizer:
         indices = random.sample(range(len(dataset)), num_to_show)
 
         for example_idx, idx in enumerate(indices, start=1):
-            sample_img, sample_label = dataset[idx]  # immagine già trasformata (resize + normalize)
+            sample_img, sample_label = dataset[idx]  # image already transformed (resize + normalize)
             cam, pred_cls = self.generate_gradcam(sample_img, target_layer_name=target_layer_name)
 
             print(f"\n=== Example {example_idx} (dataset index {idx}) ===")
@@ -368,9 +367,8 @@ class BookModelVisualizer:
                 example_idx=example_idx
             )
 
-
       # ------------------------------------------------------------------
-    #  Visualizzazione data augmentation (originale vs trasformata)
+    #  Visualization of data augmentation (original vs transformed)
     # ------------------------------------------------------------------
     def show_augmentation_example(
         self,
@@ -381,17 +379,17 @@ class BookModelVisualizer:
         title_prefix="Data augmentation"
     ):
         """
-        Mostra, per alcune immagini prese dal dataset (usando il CSV e root_dir),
-        il confronto tra:
-          - immagine originale (file su disco)
-          - immagine dopo le stesse trasformazioni usate in training/validation.
+        Shows, for some images taken from the dataset (using the CSV and root_dir),
+        the comparison between:
+          - original image (file on disk)
+          - image after the same transforms used in training/validation.
 
         Args:
-            dataset: istanza di BookCoverDataset (con attributi .df e .root_dir).
-            transform: pipeline di torchvision.transforms (es. data_transforms['train']).
-            num_examples: quante coppie originale/trasformata mostrare.
-            seed: opzionale, per rendere ripetibile la scelta di immagini.
-            title_prefix: prefisso del titolo (es. 'Train Augmentation').
+            dataset: instance of BookCoverDataset (with attributes .df and .root_dir).
+            transform: torchvision.transforms pipeline (e.g. data_transforms['train']).
+            num_examples: how many original/transformed pairs to show.
+            seed: optional, to make the image selection reproducible.
+            title_prefix: prefix for the title (e.g. 'Train Augmentation').
         """
         if seed is not None:
             random.seed(seed)
@@ -402,38 +400,38 @@ class BookModelVisualizer:
         indices = random.sample(range(len(dataset)), num_to_show)
 
         for i, idx in enumerate(indices, start=1):
-            # Recupero path dell'immagine dal CSV
+            # Retrieve image path from CSV
             try:
                 row = dataset.df.iloc[idx]
                 filename = str(row["Filename"])
                 img_path = os.path.join(dataset.root_dir, filename)
             except Exception as e:
-                print(f"⚠️ Impossibile ricavare il path per idx={idx}: {e}")
+                print(f"⚠️ Unable to get path for idx={idx}: {e}")
                 continue
 
-            # Carica immagine originale
+            # Load original image
             try:
                 orig_img = Image.open(img_path).convert("RGB")
             except Exception as e:
-                print(f"⚠️ Impossibile aprire {img_path}: {e}")
+                print(f"⚠️ Unable to open {img_path}: {e}")
                 continue
 
-            # Applica la stessa pipeline di trasformazioni (ToTensor + Normalize, ecc.)
+            # Apply the same transform pipeline (ToTensor + Normalize, etc.)
             transformed_tensor = transform(orig_img)  # (C,H,W)
 
-            # Converti per il display
+            # Convert for display
             orig_np = np.array(orig_img) / 255.0  # [H,W,3] in [0,1]
             aug_np = self.denormalize(transformed_tensor)
 
             plt.figure(figsize=(8, 4))
 
-            # Originale
+            # Original
             plt.subplot(1, 2, 1)
             plt.imshow(orig_np)
             plt.title(f"{title_prefix} - Original #{i}")
             plt.axis("off")
 
-            # Trasformata
+            # Transformed
             plt.subplot(1, 2, 2)
             plt.imshow(aug_np)
             plt.title(f"{title_prefix} - Transformed #{i}")
@@ -441,19 +439,20 @@ class BookModelVisualizer:
 
             plt.tight_layout()
             plt.show()
+
     # ------------------------------------------------------------------
-    #  Confusion Matrix (val o test)
+    #  Confusion Matrix (val or test)
     # ------------------------------------------------------------------
     def plot_confusion_matrix(self, dataloader, normalize=False,
                               title="Matrice di Confusione - Generi Letterari"):
         """
-        Calcola e visualizza la matrice di confusione su un dataloader
-        (tipicamente validation o test).
+        Computes and visualizes the confusion matrix on a dataloader
+        (typically validation or test).
 
         Args:
-            dataloader: DataLoader (es. test_loader).
-            normalize: se True, normalizza per riga (percentuali per classe).
-            title: titolo del grafico.
+            dataloader: DataLoader (e.g. test_loader).
+            normalize: if True, normalizes per row (percentages per class).
+            title: plot title.
         """
         self.model.eval()
         y_true = []
@@ -479,7 +478,7 @@ class BookModelVisualizer:
         else:
             fmt = "d"
 
-        plt.figure(figsize=(20, 16))  # Dimensioni grandi per 30 classi
+        plt.figure(figsize=(20, 16))  # Large size to fit 30 classes
         sns.heatmap(
             cm,
             annot=True,
@@ -500,21 +499,21 @@ class BookModelVisualizer:
         return cm
 
     # ------------------------------------------------------------------
-    #  Curve di loss (train vs validation)
+    #  Loss curves (train vs validation)
     # ------------------------------------------------------------------
     def plot_loss_curves(self, history, title="Training vs Validation Loss"):
         """
-        Disegna le curve di training/validation loss nel tempo.
+        Plots training/validation loss curves over time.
 
         Args:
-            history: dict con chiavi 'train_loss' e 'val_loss' (come costruito in train_model).
-            title: titolo del grafico.
+            history: dict with keys 'train_loss' and 'val_loss' (as built in train_model).
+            title: plot title.
         """
         train_loss = history.get('train_loss', [])
         val_loss = history.get('val_loss', [])
 
         if not train_loss or not val_loss:
-            print("⚠️ history non contiene 'train_loss' e/o 'val_loss'. Niente da plottare.")
+            print("⚠️ history does not contain 'train_loss' and/or 'val_loss'. Nothing to plot.")
             return
 
         epochs = range(1, len(train_loss) + 1)
